@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  ml-pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: smart-retail-optimizer:latest
+    container_name: retail_optimizer_pipeline
+    # Volumes mount local output directories so results are persisted back to host
+    volumes:
+      - ./mock_data:/app/mock_data
+      - ./model_output:/app/model_output
+    # Default command is to run the full pipeline.
+    # Can be overridden via: docker-compose run ml-pipeline --demand-only
+    command: []

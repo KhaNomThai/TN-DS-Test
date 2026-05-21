@@ -1,0 +1,4 @@
+﻿warehouse_id,warehouse_name,warehouse_type,region,capacity_units,warehouse_taxonomies
+WH-01,คลัง ภาคตะวันออกเฉียงเหนือ #1,cold_storage,ภาคตะวันออกเฉียงเหนือ,21477,ภาคตะวันออกเฉียงเหนือ > cold_storage > cap:21477
+WH-02,คลัง ภาคตะวันออกเฉียงเหนือ #2,cold_storage,ภาคตะวันออกเฉียงเหนือ,15937,ภาคตะวันออกเฉียงเหนือ > cold_storage > cap:15937
+WH-03,คลัง ภาคตะวันออกเฉียงเหนือ #3,cold_storage,ภาคตะวันออกเฉียงเหนือ,13273,ภาคตะวันออกเฉียงเหนือ > cold_storage > cap:13273

@@ -1,0 +1,367 @@
+# 🤖 Gemini – Human-AI Collaboration Log
+
+> **Purpose of this file:** This document serves two roles.
+> 1. **For Reviewers** — It demonstrates how AI was used as a development copilot throughout this project, satisfying the assessment criteria on *"AI-assisted workflows"*.
+> 2. **For Future AI Sessions** — It acts as a persistent *context memory*. Any AI that reads this file should immediately understand the project's purpose, architecture, constraints, and current state — enabling seamless continuation of work.
+
+---
+
+## 1. Project Context
+
+| Field | Detail |
+|---|---|
+| **Project Name** | Smart Retail Revenue Optimizer |
+| **Business Domain** | SME Retail (Small & Medium Enterprise – Convenience stores, Mini-marts, Supermarkets) |
+| **Assessment** | 1-week Data Science take-home assignment for Botnoi |
+| **Objective** | **Maximize Revenue** by solving two complementary problems: reducing stock-outs (Demand Forecasting) and increasing basket size (Personalized Promotion Recommendation) |
+| **Data** | Self-generated realistic mock dataset — 8 relational tables, 300,000 sales transactions, covering Jan 2023 – Dec 2025 |
+| **Tech Stack** | Python · pandas · LightGBM · NumPy · SciPy · scikit-learn · matplotlib · Faker · joblib |
+| **Deployment Target** | Dockerized batch-inference pipeline, scheduled to run every midnight |
+
+### 1.1 Business Problem Statement
+
+A typical SME retailer in Thailand faces two revenue-killing problems:
+
+1. **Stock-outs** — Popular items run out before the next replenishment cycle, causing lost sales.
+2. **Untargeted promotions** — Blanket discounts erode margins on customers who would have paid full price anyway.
+
+This project delivers two ML models that work together as a *revenue optimization engine*:
+
+| Model | Technique | Business Impact |
+|---|---|---|
+| **Demand Forecasting** | LightGBM Regressor | Predicts daily demand per product-store pair 14 days ahead → enables proactive stock replenishment |
+| **Promotion Recommender** | ALS Matrix Factorization (Collaborative Filtering) | Recommends the top-5 products each customer is most likely to buy → enables personalized promo targeting |
+
+### 1.2 Repository Structure
+
+```
+DS(Test)/
+├── generate_mock_data.py            # Generates all 8 relational tables
+├── requirements.txt                 # Python dependencies
+├── gemini.md                        # ← You are here (AI Collaboration Log)
+│
+├── mock_data/                       # Generated CSVs (raw data)
+│   ├── 01_product_master.csv        #   100 products across 10 categories
+│   ├── 02_store_master.csv          #   20 retail branches
+│   ├── 03_customer_master.csv       #   3,001 customers
+│   ├── 04_warehouse_master.csv      #   3 distribution warehouses
+│   ├── 05_promotion_master.csv      #   50 promotion campaigns
+│   ├── 06_purchasing_order.csv      #   Purchase orders (stock-in events)
+│   ├── 07_stock_movement.csv        #   Inventory movements
+│   └── 08_sales_transaction.csv     #   300,000 sales records
+│
+├── src/                             # Core ML pipeline
+│   ├── __init__.py
+│   ├── config.py                    #   Paths, hyperparameters, constants
+│   ├── utils.py                     #   Logger, data loader, seed setter
+│   ├── feature_engineering.py       #   51 engineered features (9 categories)
+│   ├── demand_forecasting.py        #   LightGBM training + evaluation + plots
+│   ├── promotion_recommendation.py  #   ALS model + RFM segmentation + plots
+│   └── run_pipeline.py              #   CLI entry point (orchestrator)
+│
+└── model_output/                    # Pipeline outputs
+    ├── models/                      #   Serialized model files
+    │   ├── demand_model.joblib      #     LightGBM model (~1 MB)
+    │   └── mf_als_model.pkl         #     ALS model (~745 KB)
+    ├── plots/                       #   Evaluation charts (8 PNGs)
+    │   ├── actual_vs_predicted.png
+    │   ├── feature_importance.png
+    │   ├── residual_distribution.png
+    │   ├── timeseries_top5.png
+    │   ├── forecast_analysis.png
+    │   ├── rec_training_loss.png
+    │   ├── rec_metrics.png
+    │   └── rec_score_distribution.png
+    └── tables/                      #   Business-ready CSV outputs
+        ├── demand_forecast.csv      #     14-day demand predictions
+        ├── customer_segments.csv    #     RFM + promo-affinity segments
+        └── promotion_recommendations.csv  # Top-5 per customer
+```
+
+### 1.3 How to Run
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Generate mock data (only needed once)
+python generate_mock_data.py
+
+# 3. Run the full ML pipeline
+python -m src.run_pipeline
+
+# 3a. Run individual models
+python -m src.run_pipeline --demand-only
+python -m src.run_pipeline --promo-only
+```
+
+### 1.4 Current Model Performance
+
+| Model | Metric | Value |
+|---|---|---|
+| Demand Forecasting (LightGBM) | R² Score | **0.9513** |
+| Demand Forecasting (LightGBM) | RMSE | **0.8662** |
+| Promotion Recommender (ALS) | Precision@5 | **0.2792** |
+| Promotion Recommender (ALS) | Hit Rate@5 | **71.03%** |
+
+### 1.5 Key Hyperparameters
+
+**LightGBM (Demand Forecasting):**
+- `n_estimators`: 500, `learning_rate`: 0.05, `max_depth`: 7, `num_leaves`: 63
+- Lag features: [1, 3, 7, 14, 28] days
+- Rolling windows: [7, 14, 28] days
+- Test split: last 60 days
+
+**ALS Matrix Factorization (Recommendation):**
+- `n_factors`: 30, `n_epochs`: 50, `reg_lambda`: 0.1
+- Top-K recommendations: 5 per customer
+- RFM quantiles: 4
+
+---
+
+## 2. Collaboration Framework: Human as Driver, AI as Copilot
+
+The collaboration follows a deliberate division of labour:
+
+| Responsibility | Human (Driver) | AI (Copilot) |
+|---|---|---|
+| **Business Logic** | ✅ Define business rules, entity relationships, KPIs | — |
+| **Architecture Decisions** | ✅ Choose models, design pipeline flow, set evaluation criteria | — |
+| **Boilerplate Code** | — | ✅ Generate repetitive code (data loaders, plot functions, CLI) |
+| **Feature Ideation** | ✅ Identify which features matter for the business | ✅ Brainstorm additional statistical features |
+| **Model Implementation** | ✅ Select algorithms, tune hyperparameters | ✅ Draft model skeletons, training loops |
+| **Debugging** | ✅ Diagnose root causes (e.g., data decay issue) | ✅ Implement fixes rapidly |
+| **Documentation** | ✅ Define structure and narrative | ✅ Draft prose and formatting |
+| **Code Review** | ✅ Final review, refactoring, approval | — |
+
+> **Core principle:** AI does not replace the Data Scientist's analytical thinking.
+> It removes the time bottleneck on *writing code*, so the human can invest that time on
+> *understanding the business problem* and *communicating value to stakeholders*.
+
+---
+
+## 3. AI-Assisted Development: Phase by Phase
+
+### Phase 1 — Data Generation (`generate_mock_data.py`)
+
+**My role (Driver):**
+- Designed the Entity-Relationship model across 8 tables
+- Defined business rules: shelf-life constraints, stock-bound sales, promotion date windows
+- Specified the temporal range (2023–2025) and volume (300K records)
+
+**AI's role (Copilot):**
+- Translated the ER design and business rules into a complete Python script using `pandas` and `Faker`
+- Implemented the complex sales-generation logic where each transaction must satisfy: *(a)* stock was available at that store, *(b)* the product had not expired, and *(c)* the sale date falls within a realistic window after stock arrival
+
+**Prompt used:**
+```
+Act as a Senior Data Engineer. I need to generate a realistic mock dataset
+for an SME retail business. The dataset must consist of 8 relational tables:
+Products, Stores, Customers, Promotions, Warehouses, Purchasing Orders,
+Stock Movement, and Sales Transactions.
+
+Ensure logical consistency — e.g., a sale can only occur AFTER the product
+arrives at the store (stock-bound), and BEFORE the product expires
+(expiry-bound). If a promotion is active during the sale date, attach the
+promotion ID and discount to the transaction.
+
+Write a Python script using pandas and Faker to generate 300,000 sales
+records covering a 2-year period.
+```
+
+**Key debugging moment:**
+During initial runs, the demand forecasting model predicted near-zero values for everything. Root cause analysis revealed that the random date generation scattered sales dates far beyond the stock-arrival windows, creating a *data decay* problem. I directed the AI to fix the date logic so that sales cluster within **7–45 days** after each stock-in event — mirroring real-world retail behaviour.
+
+---
+
+### Phase 2 — Feature Engineering (`feature_engineering.py`)
+
+**My role (Driver):**
+- Identified which feature families would have business impact (RFM, time-based, price sensitivity)
+- Decided on the feature encoding strategy (cyclical transforms for time, quartile binning for RFM)
+
+**AI's role (Copilot):**
+- Implemented 51 features across 9 engineering categories
+- Built the `build_demand_features()` orchestrator that chains all transformations
+
+**Prompt used:**
+```
+As a Lead Data Scientist aiming to maximize retail revenue, brainstorm
+10 high-impact features we can engineer from historical daily sales and
+customer transaction logs.
+
+Focus on features that will:
+1. Improve a LightGBM demand-forecasting model's accuracy
+2. Help segment customers by promo-affinity and RFM scores
+
+Include lag features, rolling statistics, cyclical time encoding, and
+price-elasticity indicators.
+```
+
+**Resulting feature categories:**
+| # | Category | Examples | Count |
+|---|---|---|---|
+| 1 | Lag Features | `lag_1_sales`, `lag_7_sales`, `lag_28_sales` | 5 |
+| 2 | Rolling Statistics | `rolling_7d_mean`, `rolling_14d_std` | 6 |
+| 3 | Cyclical Time | `day_of_week_sin/cos`, `month_sin/cos` | 6 |
+| 4 | Calendar Flags | `is_weekend`, `is_month_start`, `is_month_end` | 3 |
+| 5 | Price Features | `price`, `cost_price`, `profit_margin`, `price_tier` | 4 |
+| 6 | Product Attributes | `category`, `subcategory`, `is_perishable`, `shelf_life` | 4+ |
+| 7 | Store Attributes | `store_type`, `region`, `size_sqm` | 3+ |
+| 8 | Promotion Signals | `promo_active`, `promo_discount`, `promo_type_encoded` | 3+ |
+| 9 | Interaction Features | `high_demand_flag`, cross-feature combinations | 3+ |
+
+---
+
+### Phase 3 — Model Development
+
+#### 3a. Demand Forecasting (`demand_forecasting.py`)
+
+**My role:** Selected LightGBM for its speed on tabular data, defined the time-based train/test split (last 60 days = test set), and chose R² + RMSE as evaluation metrics.
+
+**AI's role:** Drafted the training pipeline, implemented early stopping, built 5 evaluation charts with a consistent premium visual style (`_apply_premium_style` helper).
+
+**Evaluation outputs:**
+- `actual_vs_predicted.png` — Scatter plot with ideal-line overlay
+- `feature_importance.png` — Top-20 features ranked by LightGBM gain
+- `residual_distribution.png` — Error histogram to check model bias
+- `timeseries_top5.png` — Actual vs. predicted time-series for top-5 products
+- `forecast_analysis.png` — Detailed forecast analysis with 7-day rolling average
+
+#### 3b. Promotion Recommender (`promotion_recommendation.py`)
+
+**My role:** Chose ALS Matrix Factorization for its interpretability and scalability to SME data volumes. Designed the RFM segmentation logic and the 4-tier customer classification (`loyal_full_price`, `promo_lover`, `price_sensitive`, `occasional`).
+
+**AI's role:** Implemented the ALS solver with alternating least squares, built the recommendation pipeline, and created the promotion-mapping function that joins recommendations with active campaign data.
+
+**Prompt used:**
+```
+Implement an ALS (Alternating Least Squares) Matrix Factorization model
+from scratch using only NumPy. The model should:
+1. Accept a user-item interaction matrix
+2. Learn latent factors via alternating optimization
+3. Support recommend_items() that excludes already-purchased products
+4. Track training loss per epoch for convergence plotting
+
+Also implement an RFM segmentation function that assigns customers to
+segments: Champions, Loyal, Potential Loyalists, Need Attention,
+About to Sleep, At Risk, Hibernating, Lost, and New Customers.
+```
+
+**Evaluation outputs:**
+- `rec_training_loss.png` — ALS convergence curve (MSE vs. epoch)
+- `rec_metrics.png` — Precision@5 and Hit Rate@5 bar chart
+- `rec_score_distribution.png` — Score confidence histogram
+
+---
+
+### Phase 4 — MLOps & Deployment Design
+
+**My role:** Defined the deployment strategy — a lightweight Docker container running midnight batch inference, appropriate for SME budget and infrastructure.
+
+**AI's role:** Drafted the Dockerfile skeleton and the batch-inference scheduling logic.
+
+**Prompt used:**
+```
+Draft a minimal and production-ready Dockerfile for our Python-based
+ML pipeline. Also provide a skeleton script for a Midnight Batch Inference
+process that:
+1. Loads the trained LightGBM and ALS models
+2. Processes the daily delta data
+3. Outputs updated forecast and recommendation CSV files
+
+Keep it optimized for a resource-constrained SME environment — no GPU
+required, minimal memory footprint.
+```
+
+**Architecture:**
+```
+┌─────────────────────────────────────────────────────┐
+│                   Docker Container                   │
+│                                                     │
+│  ┌───────────┐    ┌──────────────┐    ┌──────────┐  │
+│  │  Raw Data  │──▶│  Feature Eng  │──▶│  Models  │  │
+│  │  (CSVs)   │    │ (51 features) │    │ LightGBM │  │
+│  └───────────┘    └──────────────┘    │   ALS    │  │
+│                                       └────┬─────┘  │
+│                                            │        │
+│                        ┌───────────────────┼───┐    │
+│                        ▼                   ▼   │    │
+│                 demand_forecast.csv    promo_rec│    │
+│                 customer_segments.csv       .csv│    │
+│                        └───────────────────────┘    │
+│                                                     │
+│  ⏰ Scheduled: cron 0 0 * * * (daily at midnight)   │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Business & Productivity Impact
+
+### 4.1 Development Productivity
+
+| Metric | Without AI | With AI Copilot | Improvement |
+|---|---|---|---|
+| Data generator script | ~8 hours | ~2 hours | **75% faster** |
+| Feature engineering (51 features) | ~6 hours | ~2 hours | **67% faster** |
+| Model training + evaluation code | ~6 hours | ~2 hours | **67% faster** |
+| Visualization (8 premium charts) | ~4 hours | ~1 hour | **75% faster** |
+| Documentation & code comments | ~3 hours | ~1 hour | **67% faster** |
+| **Total estimated** | **~27 hours** | **~8 hours** | **~70% reduction** |
+
+> The ~19 hours saved were reinvested into: business problem analysis, model interpretation,
+> presentation design, and stakeholder communication strategy.
+
+### 4.2 Expected Business Value (Projected)
+
+| Outcome | Mechanism | Estimated Impact |
+|---|---|---|
+| **Reduced stock-outs** | 14-day demand forecast enables proactive replenishment | 15–25% fewer lost sales |
+| **Higher margins** | RFM segmentation prevents unnecessary discounts to `loyal_full_price` customers | 5–10% margin protection |
+| **Increased basket size** | Personalized Top-5 recommendations boost cross-sell | 10–20% uplift in items per transaction |
+| **Lower waste** | Demand forecasting reduces over-ordering of perishable goods | 10–15% reduction in expired stock |
+
+---
+
+## 5. Lessons Learned & Reflections
+
+1. **AI is a force multiplier, not a replacement.** The AI could not have designed the RFM segmentation tiers or decided that LightGBM was the right model for this data shape — those decisions required business understanding and data intuition.
+
+2. **Prompt precision matters.** Vague prompts produce generic code. The most productive prompts included specific constraints: table names, column names, business rules, and expected output formats.
+
+3. **Debugging still requires human judgment.** The *data decay* bug (where sales dates scattered too far from stock arrivals) was diagnosed by a human reviewing the forecast charts and tracing the logic back to the data generator. The AI then implemented the fix rapidly once directed.
+
+4. **Code review is non-negotiable.** Every AI-generated function was reviewed, tested, and refactored before integration. AI-generated code is a *first draft*, not a final product.
+
+---
+
+## 6. Context Memory for Future AI Sessions
+
+> **If you are an AI reading this file**, here is what you need to know to continue working on this project:
+
+### Quick Facts
+- **Language:** Python 3.10+
+- **Entry point:** `python -m src.run_pipeline`
+- **Data location:** `mock_data/` (8 CSV files)
+- **Output location:** `model_output/` (models, plots, tables)
+- **Config:** All hyperparameters and paths are in `src/config.py`
+
+### Completed Features & Fixes
+- [x] Fixed `promotion_recommendations.csv` empty fields bug by setting `reference_date` to `pd.Timestamp("2025-12-01")` within the active promotion range.
+- [x] Added `Dockerfile` and `docker-compose.yml` for lightweight containerized batch deployment.
+
+### Future Work & Extensions
+- [ ] Implement A/B testing framework for measuring real-world recommendation lift.
+- [ ] Add SHAP values for model explainability beyond feature importance.
+
+### Coding Conventions
+- All modules use `get_logger(__name__)` from `src/utils.py`
+- Chart styling uses `_apply_premium_style()` helper for consistent visual design
+- Random seed is controlled globally via `src/config.SEED = 42`
+- Feature engineering functions are composable and can be called individually
+
+---
+
+*Last updated: May 2026*
+*Assessment: Botnoi – Data Science Team*
