@@ -59,6 +59,18 @@ This repository represents a 1-week Data Science take-home assignment for the **
 
 ---
 
+## 🧬 Data Mockup Extensions & Business Justification
+
+To make the DS solution realistic and impactful, we extended the base mockup schema with additional columns. Here is the justification as per the assessment criteria:
+
+| Table | Added Columns | What it does & Business/Model Impact |
+|---|---|---|
+| **Product Master** | `cost_price`, `profit_margin`, `is_perishable`, `shelf_life_days` | **Impact:** Allows the business to calculate actual profit, not just revenue. `is_perishable` helps the Demand Forecasting model prioritize fast-moving inventory to reduce waste (Expired Stock). |
+| **Customer Master** | `membership_tier`, `total_spend`, `avg_basket_size`, `days_since_last_purchase` | **Impact:** Essential for computing **RFM (Recency, Frequency, Monetary) Segments**. Helps the Recommender identify `loyal_full_price` customers who shouldn't receive margin-eroding discounts. |
+| **Sales Transaction** | `total_amount`, `discount_pct`, `is_weekend`, `day_of_week` | **Impact:** `is_weekend` and `day_of_week` are critical temporal features for LightGBM to capture seasonality (e.g., weekend shopping spikes). |
+
+---
+
 ## 📂 Directory Structure
 
 ```
