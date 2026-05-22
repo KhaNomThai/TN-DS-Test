@@ -193,9 +193,9 @@ Then open your browser at **http://localhost:5000** to:
 
 ## 🤝 AI Collaboration (`gemini.md`)
 
-This project was built using an **AI-Assisted Workflow** (Human as the Project Driver, AI as the Technical Copilot). Detailed logs of prompts, key architectural decisions, feature engineering brainstorming, and productivity impact metrics are available in [gemini.md](file:///c:/Users/kulac/Github/DS(Test)/gemini.md). 
+This project was built using an **AI-Assisted Workflow** (Human as the Project Driver, AI as the Technical Copilot). Detailed logs of prompts, key architectural decisions, feature engineering brainstorming, and productivity impact metrics are available in [gemini.md](gemini.md). 
 
-Reviewing [gemini.md](file:///c:/Users/kulac/Github/DS(Test)/gemini.md) satisfies the *"AI-assisted workflows"* evaluation criteria.
+Reviewing [gemini.md](gemini.md) satisfies the *"AI-assisted workflows"* evaluation criteria.
 
 ---
 

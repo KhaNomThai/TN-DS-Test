@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 
 # ชี้ไปยังโฟลเดอร์โปรเจคและฐานข้อมูล MLflow
-PROJECT_ROOT = Path("c:/Users/kulac/Github/DS(Test)")
+PROJECT_ROOT = Path(__file__).resolve().parent
 tracking_uri = f"sqlite:///{PROJECT_ROOT / 'mlruns.db'}"
 
 print("1. Connecting to MLflow Database (mlruns.db)...")
