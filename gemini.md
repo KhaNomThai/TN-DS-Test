@@ -389,6 +389,7 @@ required, minimal memory footprint.
 - [x] Fixed `promotion_recommendations.csv` empty fields bug by setting `reference_date` to `pd.Timestamp("2025-12-01")` within the active promotion range.
 - [x] Added `Dockerfile` and `docker-compose.yml` for lightweight containerized batch deployment.
 - [x] Integrated **MLflow Tracking & Model Registry** with SQLite backend. Both models auto-register on each pipeline run.
+- [x] Configured Git to track and push the trained AI models (`demand_model.joblib` and `mf_als_model.pkl`) to GitHub.
 
 ### Future Work & Extensions
 - [ ] Implement A/B testing framework for measuring real-world recommendation lift.
@@ -403,5 +404,5 @@ required, minimal memory footprint.
 
 ---
 
-*Last updated: May 2026*
+*Last updated: May 2026 (Updated model Git tracking)*
 *Assessment: Botnoi – Data Science Team*
