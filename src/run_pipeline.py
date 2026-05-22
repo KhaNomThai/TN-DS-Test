@@ -45,52 +45,57 @@ def main() -> None:
     set_global_seed(SEED)
 
     # ------------------------------------------------------------------
-    # Load data
+    # Load data and run models
     # ------------------------------------------------------------------
-    logger.info("Loading data tables ...")
-    t0 = time.time()
-    tables = load_all_tables()
-    logger.info(f"Data loaded in {time.time() - t0:.1f}s")
+    try:
+        logger.info("Loading data tables ...")
+        t0 = time.time()
+        tables = load_all_tables()
+        logger.info(f"Data loaded in {time.time() - t0:.1f}s")
 
-    # ------------------------------------------------------------------
-    # Model 1: Demand Forecasting
-    # ------------------------------------------------------------------
-    if run_demand:
+        # ------------------------------------------------------------------
+        # Model 1: Demand Forecasting
+        # ------------------------------------------------------------------
+        if run_demand:
+            logger.info("")
+            logger.info("=" * 70)
+            logger.info("MODEL 1: DEMAND FORECASTING (LightGBM)")
+            logger.info("=" * 70)
+            t1 = time.time()
+
+            from src.demand_forecasting import run_demand_forecasting
+            demand_results = run_demand_forecasting(tables)
+
+            logger.info(f"Demand Forecasting completed in {time.time() - t1:.1f}s")
+            logger.info(f"  Metrics: {demand_results['metrics']}")
+
+        # ------------------------------------------------------------------
+        # Model 2: Promotion Recommendation
+        # ------------------------------------------------------------------
+        if run_promo:
+            logger.info("")
+            logger.info("=" * 70)
+            logger.info("MODEL 2: PERSONALIZED PROMOTION RECOMMENDATION")
+            logger.info("=" * 70)
+            t2 = time.time()
+
+            from src.promotion_recommendation import run_promotion_recommendation
+            promo_results = run_promotion_recommendation(tables)
+
+            logger.info(
+                f"Promotion Recommendation completed in {time.time() - t2:.1f}s"
+            )
+            logger.info(f"  Metrics: {promo_results['metrics']}")
+
+        # ------------------------------------------------------------------
         logger.info("")
         logger.info("=" * 70)
-        logger.info("MODEL 1: DEMAND FORECASTING (LightGBM)")
+        logger.info("PIPELINE COMPLETE")
         logger.info("=" * 70)
-        t1 = time.time()
 
-        from src.demand_forecasting import run_demand_forecasting
-        demand_results = run_demand_forecasting(tables)
-
-        logger.info(f"Demand Forecasting completed in {time.time() - t1:.1f}s")
-        logger.info(f"  Metrics: {demand_results['metrics']}")
-
-    # ------------------------------------------------------------------
-    # Model 2: Promotion Recommendation
-    # ------------------------------------------------------------------
-    if run_promo:
-        logger.info("")
-        logger.info("=" * 70)
-        logger.info("MODEL 2: PERSONALIZED PROMOTION RECOMMENDATION")
-        logger.info("=" * 70)
-        t2 = time.time()
-
-        from src.promotion_recommendation import run_promotion_recommendation
-        promo_results = run_promotion_recommendation(tables)
-
-        logger.info(
-            f"Promotion Recommendation completed in {time.time() - t2:.1f}s"
-        )
-        logger.info(f"  Metrics: {promo_results['metrics']}")
-
-    # ------------------------------------------------------------------
-    logger.info("")
-    logger.info("=" * 70)
-    logger.info("PIPELINE COMPLETE")
-    logger.info("=" * 70)
+    except Exception as e:
+        logger.error(f"Pipeline failed: {str(e)}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

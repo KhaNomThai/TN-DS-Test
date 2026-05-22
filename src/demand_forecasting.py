@@ -203,6 +203,10 @@ def train_demand_model(
 
     # 10 % chronological validation split
     val_size = max(int(len(X) * 0.1), 1)
+
+    if len(X) <= val_size:
+        raise ValueError("CRITICAL: df_train lacks sufficient data to construct validation splits. Check your historical data limits and lag window sizes.")
+
     X_tr, X_val = X.iloc[:-val_size], X.iloc[-val_size:]
     y_tr, y_val = y.iloc[:-val_size], y.iloc[-val_size:]
 

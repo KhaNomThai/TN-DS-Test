@@ -37,6 +37,7 @@ from src.config import (
     MLFLOW_TRACKING_URI,
     MLFLOW_EXPERIMENT_PROMO,
     MLFLOW_MODEL_NAME_PROMO,
+    RFM_QUANTILES,
 )
 from src.utils import get_logger, set_global_seed
 
@@ -211,7 +212,10 @@ class MatrixFactorizationALS:
             if epoch % max(1, self.n_epochs // 10) == 0 or epoch == 1:
                 logger.info(f"  Epoch {epoch:>3d}/{self.n_epochs}  MSE={mse:.6f}")
 
-        logger.info(f"ALS training complete. Final MSE={self.training_loss[-1]:.6f}")
+        if self.training_loss:
+            logger.info(f"ALS training complete. Final MSE={self.training_loss[-1]:.6f}")
+        else:
+            logger.warning("ALS training completed but no training loss was recorded (possibly an empty interaction matrix).")
         return self
 
     # --------------------------------------------------------------------- #
@@ -228,6 +232,8 @@ class MatrixFactorizationALS:
         Returns:
             Predicted interaction score.
         """
+        if user_idx >= len(self.user_factors) or item_idx >= len(self.item_factors):
+            return 0.0
         return float(self.user_factors[user_idx] @ self.item_factors[item_idx])
 
     def predict_all(self) -> np.ndarray:
@@ -279,21 +285,34 @@ class ALSModelWrapper(mlflow.pyfunc.PythonModel):
     def __init__(self, als_model: MatrixFactorizationALS | None = None) -> None:
         self.als_model = als_model
 
-    def predict(self, context, model_input: pd.DataFrame) -> np.ndarray:
-        """Predict interaction scores for given user-item pairs.
+    def predict(self, context: mlflow.pyfunc.PythonModelContext, model_input: pd.DataFrame) -> np.ndarray:
+        """Predict interaction scores for given user-item pairs using vectorized ops.
 
         Args:
-            context: MLflow context (unused).
+            context: MLflow context.
             model_input: DataFrame with ``user_idx`` and ``item_idx`` columns.
 
         Returns:
             Array of predicted scores.
         """
-        scores = []
-        for _, row in model_input.iterrows():
-            score = self.als_model.predict(int(row["user_idx"]), int(row["item_idx"]))
-            scores.append(score)
-        return np.array(scores)
+        user_indices = model_input["user_idx"].astype(int).values
+        item_indices = model_input["item_idx"].astype(int).values
+        
+        valid_mask = (user_indices < len(self.als_model.user_factors)) & \
+                     (item_indices < len(self.als_model.item_factors))
+        
+        scores = np.zeros(len(model_input))
+        valid_users = user_indices[valid_mask]
+        valid_items = item_indices[valid_mask]
+        
+        if len(valid_users) > 0:
+            scores[valid_mask] = np.sum(
+                self.als_model.user_factors[valid_users] * 
+                self.als_model.item_factors[valid_items], 
+                axis=1
+            )
+            
+        return scores
 
 
 # ===========================================================================
@@ -404,7 +423,7 @@ def compute_customer_segments(df_rfm: pd.DataFrame) -> pd.DataFrame:
             "promo_sensitivity not found – estimating from monetary quartile"
         )
         monetary_q = pd.qcut(
-            df["monetary"], q=4, labels=False, duplicates="drop"
+            df["monetary"], q=RFM_QUANTILES, labels=False, duplicates="drop"
         )
         # Lower monetary quartile ⇒ higher price sensitivity
         df["promo_sensitivity"] = 1.0 - (monetary_q / monetary_q.max())
@@ -804,9 +823,8 @@ def run_promotion_recommendation(tables: dict[str, pd.DataFrame]) -> dict[str, A
     )
 
     # ---- 7. Map to promotions ----
-    # Use a reference date within the mock data range (e.g., 2025-12-01) where promotions are active,
-    # rather than the absolute end of the dataset (2025-12-31) where almost all promotions have expired.
-    reference_date = pd.Timestamp("2025-12-01")
+    # Use the most recent data point from sales as the reference date
+    reference_date = pd.to_datetime(df_sales["datetime"]).max().normalize()
     df_promo_recs = map_recommendations_to_promotions(
         all_recommendations,
         product_to_idx,

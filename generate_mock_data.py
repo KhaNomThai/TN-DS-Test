@@ -425,6 +425,7 @@ for i in range(1, NUM_STOCK_MOVEMENTS + 1):
         "transfer_date": transfer_date,
         "expire_date": po_info["expire_date"],
         "product_id": po_info["product_id"],
+        "qty_remaining": qty_moved,
     })
 
 df_stock = pd.DataFrame(stock_movements)
@@ -445,6 +446,7 @@ for po_id, movements in po_store_map.items():
             "available_from": m["transfer_date"],
             "available_until": m["expire_date"],
             "po_id": po_id,
+            "qty_remaining": m["qty_remaining"],
         })
 
 product_sell_price = dict(zip(df_products["product_id"], df_products["price"]))
@@ -478,6 +480,10 @@ while sales_counter < NUM_SALES and attempts < max_attempts:
 
     # Pick a random inventory slot for this product
     inv_slot = random.choice(inv_by_product[pid])
+    
+    if inv_slot["qty_remaining"] <= 0:
+        continue
+
     store_id = inv_slot["store_id"]
     po_id = inv_slot["po_id"]
     avail_from = inv_slot["available_from"]
@@ -513,6 +519,9 @@ while sales_counter < NUM_SALES and attempts < max_attempts:
         [1, 2, 3, 4, 5, 6, 8, 10, 12],
         weights=[35, 25, 15, 8, 6, 4, 3, 2, 2],
     )[0]
+    qty = min(qty, inv_slot["qty_remaining"])
+    inv_slot["qty_remaining"] -= qty
+
 
     # Pick customer (weighted by tier → higher tiers buy more often)
     cust_id = random.choices(

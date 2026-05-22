@@ -116,18 +116,20 @@ def build_daily_demand(
 def add_time_features(
     df: pd.DataFrame,
     date_col: str = "date",
+    inplace: bool = False,
 ) -> pd.DataFrame:
     """Derive calendar and cyclical time features from a date column.
 
     Args:
         df: DataFrame containing a date column.
         date_col: Name of the date column.
+        inplace: Whether to modify the DataFrame in place.
 
     Returns:
         DataFrame with new time-related columns appended.
     """
     logger.info("Adding time features …")
-    out = df.copy()
+    out = df if inplace else df.copy()
     dt = pd.to_datetime(out[date_col])
 
     out["day_of_week"] = dt.dt.dayofweek          # 0=Mon … 6=Sun
@@ -159,6 +161,7 @@ def add_lag_features(
     target_col: str = "daily_qty",
     group_cols: list[str] | None = None,
     lags: list[int] | None = None,
+    inplace: bool = False,
 ) -> pd.DataFrame:
     """Create lagged values of the target variable.
 
@@ -171,6 +174,7 @@ def add_lag_features(
         group_cols: Grouping columns; defaults to
             ``['product_id', 'store_id']``.
         lags: Lag horizons in days; defaults to :pydata:`LAG_DAYS`.
+        inplace: Whether to modify the DataFrame in place.
 
     Returns:
         DataFrame with ``lag_{N}`` columns appended.
@@ -181,7 +185,9 @@ def add_lag_features(
         lags = LAG_DAYS
 
     logger.info("Adding lag features %s …", lags)
-    out = df.sort_values(group_cols + ["date"]).copy()
+    if not inplace:
+        df = df.copy()
+    out = df.sort_values(group_cols + ["date"])
 
     grouped = out.groupby(group_cols, observed=True)[target_col]
     for lag in lags:
@@ -199,6 +205,7 @@ def add_rolling_features(
     target_col: str = "daily_qty",
     group_cols: list[str] | None = None,
     windows: list[int] | None = None,
+    inplace: bool = False,
 ) -> pd.DataFrame:
     """Compute rolling statistics (mean, std, max, min) of the target.
 
@@ -211,6 +218,7 @@ def add_rolling_features(
             ``['product_id', 'store_id']``.
         windows: Rolling window sizes; defaults to
             :pydata:`ROLLING_WINDOWS`.
+        inplace: Whether to modify the DataFrame in place.
 
     Returns:
         DataFrame with ``rolling_{stat}_{W}`` columns appended.
@@ -221,18 +229,24 @@ def add_rolling_features(
         windows = ROLLING_WINDOWS
 
     logger.info("Adding rolling features %s …", windows)
-    out = df.sort_values(group_cols + ["date"]).copy()
+    if not inplace:
+        df = df.copy()
+    out = df.sort_values(group_cols + ["date"])
+
+    out["shifted_target"] = out.groupby(group_cols, observed=True)[target_col].shift(1)
 
     for w in windows:
         rolled = (
             out
-            .groupby(group_cols, observed=True)[target_col]
+            .groupby(group_cols, observed=True)["shifted_target"]
             .rolling(window=w, min_periods=1)
         )
         out[f"rolling_mean_{w}"] = rolled.mean().reset_index(level=group_cols, drop=True)
         out[f"rolling_std_{w}"] = rolled.std().reset_index(level=group_cols, drop=True)
         out[f"rolling_max_{w}"] = rolled.max().reset_index(level=group_cols, drop=True)
         out[f"rolling_min_{w}"] = rolled.min().reset_index(level=group_cols, drop=True)
+
+    out = out.drop(columns=["shifted_target"])
 
     # std can be NaN when window has only 1 observation
     std_cols = [c for c in out.columns if c.startswith("rolling_std_")]
@@ -248,6 +262,7 @@ def add_rolling_features(
 def add_promotion_features(
     df: pd.DataFrame,
     df_promotions: pd.DataFrame,
+    inplace: bool = False,
 ) -> pd.DataFrame:
     """Add promotion-related features for each (product_id, date) pair.
 
@@ -259,13 +274,14 @@ def add_promotion_features(
         df: Demand DataFrame with ``product_id`` and ``date``.
         df_promotions: Promotion master with ``product_id``,
             ``start_date``, ``end_date``, ``discount``.
+        inplace: Whether to modify the DataFrame in place.
 
     Returns:
         DataFrame with ``is_on_promo``, ``promo_discount``,
         ``days_into_promo``, and ``days_until_promo_end`` columns.
     """
     logger.info("Adding promotion features …")
-    out = df.copy()
+    out = df if inplace else df.copy()
 
     promos = df_promotions.copy()
     promos["start_date"] = pd.to_datetime(promos["start_date"])
@@ -323,6 +339,7 @@ def add_expiry_features(
     df: pd.DataFrame,
     df_po: pd.DataFrame,
     df_stock_movement: pd.DataFrame,
+    inplace: bool = False,
 ) -> pd.DataFrame:
     """Add stock-expiry related features for each (product_id, store_id, date).
 
@@ -335,13 +352,14 @@ def add_expiry_features(
             ``expire_date``.
         df_stock_movement: Stock movements with ``po_id``, ``store_id``,
             ``transfer_date``.
+        inplace: Whether to modify the DataFrame in place.
 
     Returns:
         DataFrame with ``days_until_nearest_expiry``,
         ``has_expiring_stock_7d``, and ``has_expiring_stock_14d``.
     """
     logger.info("Adding expiry features …")
-    out = df.copy()
+    out = df if inplace else df.copy()
 
     po = df_po[["po_id", "product_id", "expire_date"]].copy()
     po["expire_date"] = pd.to_datetime(po["expire_date"])
@@ -558,22 +576,23 @@ def build_demand_features(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     )
 
     # Step 2 – Time features
-    df = add_time_features(df, date_col="date")
+    df = add_time_features(df, date_col="date", inplace=True)
 
     # Step 3 – Lag features
-    df = add_lag_features(df)
+    df = add_lag_features(df, inplace=True)
 
     # Step 4 – Rolling features
-    df = add_rolling_features(df)
+    df = add_rolling_features(df, inplace=True)
 
     # Step 5 – Promotion features
-    df = add_promotion_features(df, df_promotions=tables["promotions"])
+    df = add_promotion_features(df, df_promotions=tables["promotions"], inplace=True)
 
     # Step 6 – Expiry features
     df = add_expiry_features(
         df,
         df_po=tables["po"],
         df_stock_movement=tables["stock_movement"],
+        inplace=True
     )
 
     # Drop rows where lag features are NaN (early dates without history)
