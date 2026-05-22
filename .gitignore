@@ -150,9 +150,9 @@ ehthumbs.db
 Thumbs.db
 
 # Project-specific ignored files
-# Heavy serialized binary models should not be pushed to GitHub (keep them ignored)
-model_output/models/*.joblib
-model_output/models/*.pkl
+# Heavy serialized binary models can be tracked as requested by the user
+# model_output/models/*.joblib
+# model_output/models/*.pkl
 
 # MLflow tracking data (can be large, regenerated per environment)
 mlruns/
