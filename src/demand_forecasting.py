@@ -15,6 +15,8 @@ from typing import Any
 import joblib
 import lightgbm as lgb
 import matplotlib.pyplot as plt
+import mlflow
+import mlflow.lightgbm
 import numpy as np
 import pandas as pd
 from sklearn.metrics import (
@@ -32,6 +34,9 @@ from src.config import (
     TABLES_DIR,
     SEED,
     TEST_SPLIT_DAYS,
+    MLFLOW_TRACKING_URI,
+    MLFLOW_EXPERIMENT_DEMAND,
+    MLFLOW_MODEL_NAME_DEMAND,
 )
 from src.utils import get_logger, set_global_seed
 
@@ -588,6 +593,7 @@ def run_demand_forecasting(tables: dict[str, pd.DataFrame]) -> dict[str, Any]:
         6. Generate diagnostic plots
         7. Save model with :mod:`joblib`
         8. Generate forward-looking forecast
+        9. Log everything to MLflow & register model
 
     Args:
         tables: Dictionary of raw DataFrames keyed by table name
@@ -598,6 +604,10 @@ def run_demand_forecasting(tables: dict[str, pd.DataFrame]) -> dict[str, Any]:
         ``feature_cols``, and ``encoders``.
     """
     set_global_seed(SEED)
+
+    # ── MLflow setup ──────────────────────────────────────────────────────
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_DEMAND)
 
     # 1. Build features ────────────────────────────────────────────────────
     from src.feature_engineering import build_demand_features  # noqa: E402
@@ -647,6 +657,50 @@ def run_demand_forecasting(tables: dict[str, pd.DataFrame]) -> dict[str, Any]:
     forecast_path = os.path.join(str(TABLES_DIR), "demand_forecast.csv")
     forecast.to_csv(forecast_path, index=False)
     logger.info("Forecast saved to %s", forecast_path)
+
+    # ── 9. MLflow Tracking & Model Registry ───────────────────────────────
+    logger.info("══════ Step 9: Logging to MLflow ══════")
+    with mlflow.start_run(run_name="LightGBM-Demand-Forecast") as run:
+        # Log hyperparameters
+        mlflow.log_params(LGBM_PARAMS)
+        mlflow.log_param("test_split_days", TEST_SPLIT_DAYS)
+        mlflow.log_param("forecast_horizon_days", FORECAST_HORIZON_DAYS)
+        mlflow.log_param("n_features", len(feature_cols))
+        mlflow.log_param("train_rows", len(df_train))
+        mlflow.log_param("test_rows", len(df_test))
+
+        # Log evaluation metrics
+        for metric_name, metric_value in metrics.items():
+            mlflow.log_metric(metric_name, metric_value)
+
+        # Log diagnostic plot artifacts
+        plot_files = [
+            "actual_vs_predicted.png",
+            "feature_importance.png",
+            "residual_distribution.png",
+            "timeseries_top5.png",
+        ]
+        for plot_file in plot_files:
+            plot_path = os.path.join(str(PLOTS_DIR), plot_file)
+            if os.path.exists(plot_path):
+                mlflow.log_artifact(plot_path, artifact_path="plots")
+
+        # Log forecast CSV
+        if os.path.exists(forecast_path):
+            mlflow.log_artifact(forecast_path, artifact_path="tables")
+
+        # Register model in MLflow Model Registry
+        mlflow.lightgbm.log_model(
+            model,
+            artifact_path="model",
+            registered_model_name=MLFLOW_MODEL_NAME_DEMAND,
+        )
+
+        logger.info(
+            "MLflow run logged  |  run_id=%s  |  experiment=%s",
+            run.info.run_id,
+            MLFLOW_EXPERIMENT_DEMAND,
+        )
 
     return {
         "model": model,

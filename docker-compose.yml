@@ -11,6 +11,8 @@ services:
     volumes:
       - ./mock_data:/app/mock_data
       - ./model_output:/app/model_output
+      - ./mlruns:/app/mlruns
+      - ./mlruns.db:/app/mlruns.db
     # Default command is to run the full pipeline.
     # Can be overridden via: docker-compose run ml-pipeline --demand-only
     command: []

@@ -71,3 +71,13 @@ MF_REG_LAMBDA = 0.1
 
 # Random seed
 SEED = 42
+
+# ===========================================================================
+# MLflow Configuration
+# ===========================================================================
+MLFLOW_TRACKING_URI = f"sqlite:///{PROJECT_ROOT / 'mlruns.db'}"
+MLFLOW_ARTIFACT_LOCATION = str(PROJECT_ROOT / "mlruns")
+MLFLOW_EXPERIMENT_DEMAND = "SME-Retail-Demand-Forecasting"
+MLFLOW_EXPERIMENT_PROMO = "SME-Retail-Promotion-Recommender"
+MLFLOW_MODEL_NAME_DEMAND = "SME_Demand_Model"
+MLFLOW_MODEL_NAME_PROMO = "SME_Promo_Recommender"

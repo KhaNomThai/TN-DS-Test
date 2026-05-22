@@ -155,6 +155,42 @@ A midnight batch-inference process is simulated using a lightweight Docker conta
 
 ---
 
+## 📊 MLflow Experiment Tracking & Model Registry
+
+This project integrates **MLflow** for full experiment lifecycle management. Every pipeline run automatically logs hyperparameters, evaluation metrics, diagnostic plots, and registers trained models.
+
+### What Gets Tracked
+
+| Component | Tracked Data |
+|---|---|
+| **Demand Forecasting** | LightGBM hyperparameters (`n_estimators`, `learning_rate`, `max_depth`, etc.), metrics (`R²`, `RMSE`, `MAE`, `MAPE`, `WMAPE`), 4 diagnostic plots, forecast CSV |
+| **Promotion Recommender** | ALS hyperparameters (`n_factors`, `n_epochs`, `reg_lambda`, etc.), metrics (`Precision@K`, `Recall@K`, `NDCG@K`, `Hit Rate@K`, `Coverage`), 3 diagnostic plots, recommendation & segment CSVs |
+
+### Model Registry
+
+Both models are automatically registered in the **MLflow Model Registry** after each training run:
+
+| Registered Model Name | Flavor | Description |
+|---|---|---|
+| `SME_Demand_Model` | `mlflow.lightgbm` | LightGBM Regressor for 14-day demand forecasting |
+| `SME_Promo_Recommender` | `mlflow.pyfunc` | Custom ALS Matrix Factorization wrapped as PythonModel |
+
+### Viewing Experiments with MLflow UI
+
+After running the pipeline, launch the MLflow dashboard:
+
+```bash
+mlflow ui --backend-store-uri sqlite:///mlruns.db --default-artifact-root mlruns
+```
+
+Then open your browser at **http://localhost:5000** to:
+- 📈 Compare metrics across training runs
+- 🔍 Inspect logged hyperparameters and artifacts (plots, CSVs)
+- 🏷️ Manage model versions (Staging → Production → Archived)
+- ⏪ Rollback to previous model versions with one click
+
+---
+
 ## 🤝 AI Collaboration (`gemini.md`)
 
 This project was built using an **AI-Assisted Workflow** (Human as the Project Driver, AI as the Technical Copilot). Detailed logs of prompts, key architectural decisions, feature engineering brainstorming, and productivity impact metrics are available in [gemini.md](file:///c:/Users/kulac/Github/DS(Test)/gemini.md). 

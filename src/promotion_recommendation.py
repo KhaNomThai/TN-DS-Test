@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+import mlflow
+import mlflow.pyfunc
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
@@ -32,6 +34,9 @@ from src.config import (
     TABLES_DIR,
     SEED,
     TOP_K_RECOMMENDATIONS,
+    MLFLOW_TRACKING_URI,
+    MLFLOW_EXPERIMENT_PROMO,
+    MLFLOW_MODEL_NAME_PROMO,
 )
 from src.utils import get_logger, set_global_seed
 
@@ -261,6 +266,34 @@ class MatrixFactorizationALS:
         scores[already_purchased] = -np.inf
         top_items = np.argsort(scores)[::-1][:top_k]
         return top_items.tolist()
+
+
+class ALSModelWrapper(mlflow.pyfunc.PythonModel):
+    """MLflow PythonModel wrapper for the custom ALS Matrix Factorization model.
+
+    This wrapper enables MLflow to serialize, deserialize, and serve the
+    custom :class:`MatrixFactorizationALS` model through the standard
+    ``mlflow.pyfunc`` interface.
+    """
+
+    def __init__(self, als_model: MatrixFactorizationALS | None = None) -> None:
+        self.als_model = als_model
+
+    def predict(self, context, model_input: pd.DataFrame) -> np.ndarray:
+        """Predict interaction scores for given user-item pairs.
+
+        Args:
+            context: MLflow context (unused).
+            model_input: DataFrame with ``user_idx`` and ``item_idx`` columns.
+
+        Returns:
+            Array of predicted scores.
+        """
+        scores = []
+        for _, row in model_input.iterrows():
+            score = self.als_model.predict(int(row["user_idx"]), int(row["item_idx"]))
+            scores.append(score)
+        return np.array(scores)
 
 
 # ===========================================================================
@@ -634,6 +667,53 @@ def plot_recommendation_results(
     logger.info(f"Saved score distribution plot → {output_dir / 'rec_score_distribution.png'}")
 
 
+def plot_rfm_segments(df_segments: pd.DataFrame, output_dir: Path | str | None = None) -> None:
+    """Plot the distribution of RFM customer segments."""
+    if output_dir is None:
+        output_dir = PLOTS_DIR
+    output_dir = Path(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
+
+    segment_counts = df_segments["segment"].value_counts()
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Premium colors for segments
+    colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(segment_counts)))
+    
+    bars = ax.bar(segment_counts.index, segment_counts.values, color=colors, edgecolor="none", width=0.6)
+    
+    # Add values on top of bars
+    max_val = segment_counts.max()
+    for bar in bars:
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + (max_val * 0.015 if max_val > 0 else 0),
+            f"{int(bar.get_height()):,}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            fontweight="bold",
+            color="#2C3E50"
+        )
+        
+    ax.set_ylim(0, max_val * 1.15 if max_val > 0 else 1.0)
+    plt.xticks(rotation=45, ha='right')
+    
+    _apply_premium_style(
+        ax, 
+        title="Customer Segment Distribution (RFM + Promo Affinity)",
+        xlabel="Segment",
+        ylabel="Number of Customers",
+        grid="y"
+    )
+    
+    fig.tight_layout()
+    fig.savefig(output_dir / "rfm_segments.png", dpi=150)
+    plt.close(fig)
+    logger.info(f"Saved RFM segments plot → {output_dir / 'rfm_segments.png'}")
+
+
 # ===========================================================================
 # 8. Main Orchestrator
 # ===========================================================================
@@ -652,6 +732,7 @@ def run_promotion_recommendation(tables: dict[str, pd.DataFrame]) -> dict[str, A
         7. Map to actual promotions.
         8. Plot results.
         9. Save outputs (recommendations CSV + model pickle).
+        10. Log everything to MLflow & register model.
 
     Args:
         tables: Dictionary of DataFrames as returned by
@@ -667,6 +748,10 @@ def run_promotion_recommendation(tables: dict[str, pd.DataFrame]) -> dict[str, A
     logger.info("=" * 60)
     logger.info("PROMOTION RECOMMENDATION PIPELINE")
     logger.info("=" * 60)
+
+    # ── MLflow setup ──────────────────────────────────────────────────────
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_PROMO)
 
     df_sales = tables["sales"]
     df_promotions = tables["promotions"]
@@ -736,6 +821,7 @@ def run_promotion_recommendation(tables: dict[str, pd.DataFrame]) -> dict[str, A
 
     # ---- 8. Plot results ----
     plot_recommendation_results(metrics, model, output_dir=PLOTS_DIR)
+    plot_rfm_segments(df_segments, output_dir=PLOTS_DIR)
 
     # ---- 9. Save outputs ----
     rec_csv_path = TABLES_DIR / "promotion_recommendations.csv"
@@ -750,6 +836,61 @@ def run_promotion_recommendation(tables: dict[str, pd.DataFrame]) -> dict[str, A
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
     logger.info(f"Saved model pickle → {model_path}")
+
+    # ── 10. MLflow Tracking & Model Registry ─────────────────────────────
+    logger.info("══════ Step 10: Logging to MLflow ══════")
+    with mlflow.start_run(run_name="ALS-Promo-Recommender") as run:
+        # Log hyperparameters
+        mlflow.log_param("n_factors", MF_N_FACTORS)
+        mlflow.log_param("n_epochs", MF_N_EPOCHS)
+        mlflow.log_param("learning_rate", MF_LEARNING_RATE)
+        mlflow.log_param("reg_lambda", MF_REG_LAMBDA)
+        mlflow.log_param("top_k", TOP_K_RECOMMENDATIONS)
+        mlflow.log_param("test_ratio", 0.2)
+        mlflow.log_param("seed", SEED)
+        mlflow.log_param("n_customers", interaction_array.shape[0])
+        mlflow.log_param("n_products", interaction_array.shape[1])
+
+        # Log evaluation metrics
+        for metric_name, metric_value in metrics.items():
+            if isinstance(metric_value, (int, float)):
+                mlflow.log_metric(metric_name, metric_value)
+
+        # Log final training loss
+        if model.training_loss:
+            mlflow.log_metric("final_training_mse", model.training_loss[-1])
+
+        # Log diagnostic plot artifacts
+        plot_files = [
+            "rec_training_loss.png",
+            "rec_metrics.png",
+            "rec_score_distribution.png",
+            "rfm_segments.png",
+        ]
+        for plot_file in plot_files:
+            plot_path = str(PLOTS_DIR / plot_file)
+            if os.path.exists(plot_path):
+                mlflow.log_artifact(plot_path, artifact_path="plots")
+
+        # Log output CSVs
+        if os.path.exists(str(rec_csv_path)):
+            mlflow.log_artifact(str(rec_csv_path), artifact_path="tables")
+        if os.path.exists(str(seg_csv_path)):
+            mlflow.log_artifact(str(seg_csv_path), artifact_path="tables")
+
+        # Register model in MLflow Model Registry via custom PythonModel wrapper
+        wrapped_model = ALSModelWrapper(als_model=model)
+        mlflow.pyfunc.log_model(
+            artifact_path="model",
+            python_model=wrapped_model,
+            registered_model_name=MLFLOW_MODEL_NAME_PROMO,
+        )
+
+        logger.info(
+            "MLflow run logged  |  run_id=%s  |  experiment=%s",
+            run.info.run_id,
+            MLFLOW_EXPERIMENT_PROMO,
+        )
 
     logger.info("Promotion recommendation pipeline complete ✓")
 

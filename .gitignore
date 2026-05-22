@@ -154,6 +154,10 @@ Thumbs.db
 model_output/models/*.joblib
 model_output/models/*.pkl
 
+# MLflow tracking data (can be large, regenerated per environment)
+mlruns/
+mlruns.db
+
 # Keep output directories in git
 !model_output/models/.gitkeep
 !model_output/tables/.gitkeep
