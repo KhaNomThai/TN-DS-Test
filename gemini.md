@@ -69,7 +69,7 @@ DS(Test)/
     ├── models/                      #   Serialized model files
     │   ├── demand_model.joblib      #     LightGBM model (~1 MB)
     │   └── mf_als_model.pkl         #     ALS model (~745 KB)
-    ├── plots/                       #   Evaluation charts (8 PNGs)
+    ├── plots/                       #   Evaluation charts (9 PNGs)
     │   ├── actual_vs_predicted.png
     │   ├── feature_importance.png
     │   ├── residual_distribution.png
@@ -77,7 +77,8 @@ DS(Test)/
     │   ├── forecast_analysis.png
     │   ├── rec_training_loss.png
     │   ├── rec_metrics.png
-    │   └── rec_score_distribution.png
+    │   ├── rec_score_distribution.png
+    │   └── rfm_segments.png
     └── tables/                      #   Business-ready CSV outputs
         ├── demand_forecast.csv      #     14-day demand predictions
         ├── customer_segments.csv    #     RFM + promo-affinity segments
@@ -258,6 +259,7 @@ About to Sleep, At Risk, Hibernating, Lost, and New Customers.
 - `rec_training_loss.png` — ALS convergence curve (MSE vs. epoch)
 - `rec_metrics.png` — Precision@5 and Hit Rate@5 bar chart
 - `rec_score_distribution.png` — Score confidence histogram
+- `rfm_segments.png` — Customer count distribution across RFM segments
 
 ---
 
